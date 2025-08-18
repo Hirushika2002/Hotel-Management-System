@@ -24,12 +24,27 @@ const clerkWebhooks = async (req, res) => {
             return res.status(400).json({success: false, message: "Missing required headers"});
         }
 
-        //verify headers (req.body should be raw for webhooks)
-        const body = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body);
+        // Fix body handling for Vercel serverless functions
+        let body;
+        if (Buffer.isBuffer(req.body)) {
+            body = req.body.toString();
+        } else if (typeof req.body === 'string') {
+            body = req.body;
+        } else {
+            body = JSON.stringify(req.body);
+        }
+
+        //verify headers
         await whook.verify(body, headers);
 
         // Parse the body after verification
-        const parsedBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        let parsedBody;
+        try {
+            parsedBody = typeof body === 'string' ? JSON.parse(body) : req.body;
+        } catch (parseError) {
+            parsedBody = req.body;
+        }
+        
         const {data, type} = parsedBody;
 
         // Validate required data
@@ -48,21 +63,34 @@ const clerkWebhooks = async (req, res) => {
         // Switch cases for different events
         switch(type) {
             case "user.created":{
-                // Check if user already exists
-                const existingUser = await User.findById(data.id);
-                if (!existingUser) {
-                    await User.create(userData);
+                try {
+                    // Check if user already exists
+                    const existingUser = await User.findById(data.id);
+                    if (!existingUser) {
+                        await User.create(userData);
+                    }
+                } catch (dbError) {
+                    console.error("Database error in user.created:", dbError.message);
+                    // Don't fail webhook for database errors
                 }
                 break;
             }
 
             case "user.updated":{
-                await User.findByIdAndUpdate(data.id, userData, { upsert: true });
+                try {
+                    await User.findByIdAndUpdate(data.id, userData, { upsert: true });
+                } catch (dbError) {
+                    console.error("Database error in user.updated:", dbError.message);
+                }
                 break;
             }
 
             case "user.deleted":{
-                await User.findByIdAndDelete(data.id);
+                try {
+                    await User.findByIdAndDelete(data.id);
+                } catch (dbError) {
+                    console.error("Database error in user.deleted:", dbError.message);
+                }
                 break;
             }
                
@@ -70,14 +98,28 @@ const clerkWebhooks = async (req, res) => {
                 console.log(`Unhandled webhook type: ${type}`);
                 break;
         }
-        res.json({success: true, message: "Webhook Received"})
+        
+        res.status(200).json({success: true, message: "Webhook Received"})
 
     } catch (error) {
-        console.log("Webhook error:", error.message);
-        // Return appropriate status code based on error type
-        const statusCode = error.message.includes('verification') ? 401 : 400;
-        const message = process.env.NODE_ENV === 'development' ? error.message : 'Internal server error';
-        res.status(statusCode).json({success: false, message});
+        console.error("Webhook error:", error.message, error.stack);
+        
+        // More specific error handling
+        let statusCode = 400;
+        let message = "Webhook processing failed";
+        
+        if (error.message.includes('verification')) {
+            statusCode = 401;
+            message = "Webhook verification failed";
+        } else if (error.message.includes('CLERK_WEBHOOK_SECRET')) {
+            statusCode = 500;
+            message = "Server configuration error";
+        }
+        
+        res.status(statusCode).json({
+            success: false, 
+            message: process.env.NODE_ENV === 'development' ? error.message : message
+        });
     }
 }
 
