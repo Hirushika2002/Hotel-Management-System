@@ -46,6 +46,17 @@ const connectDB = async () => {
 };
 
 // Routes
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'API is working',
+        status: 'success',
+        endpoints: {
+            health: '/api/health',
+            webhook: '/api/webhooks/clerk'
+        }
+    });
+});
+
 app.post('/api/webhooks/clerk', clerkWebhooks);
 
 // Health check route

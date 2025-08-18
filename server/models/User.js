@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true,
-    _id: false // Disable auto-generated _id since we're using custom _id
+    _id: false
 });
 
 export default mongoose.model('User', userSchema);
