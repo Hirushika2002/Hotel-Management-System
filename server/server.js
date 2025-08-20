@@ -20,6 +20,10 @@ app.use("/api/clerk", clerkWebhooks);
 
 app.get('/', (req, res)=> res.send("API is working"))
 
-const PORT = process.env.PORT || 3000;
+// Only start server if not running in serverless (e.g., local dev)
+if (process.env.NODE_ENV !== "production") {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, ()=> console.log(`Server running on port ${PORT}`));
+}
 
-app.listen(PORT, ()=> console.log(`Server running on port ${PORT}`));
+export default app;
