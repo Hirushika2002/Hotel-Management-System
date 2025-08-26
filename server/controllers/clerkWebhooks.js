@@ -3,20 +3,20 @@ import { Webhook } from "svix";
 
 const clerkWebhooks = async (req, res) => {
     try {
-        // create svix instance with clerk webhook secret
         const whook = new Webhook(process.env.CLERK_WEBHOOK_SECRET)
-        // get headers
         const headers = {
             "svix-id": req.headers["svix-id"],
             "svix-timestamp": req.headers["svix-timestamp"],
             "svix-signature": req.headers["svix-signature"],
         };
 
-        //verify headers
-        await whook.verify(JSON.stringify(req.body), headers);
+        // Verify signature using raw body
+        const payload = req.body; // Buffer
+        const jsonString = payload.toString();
+        whook.verify(jsonString, headers);
 
-        //getting data from request body
-        const { data, type } = req.body;
+        // Parse JSON for use
+        const { data, type } = JSON.parse(jsonString);
 
         const userData = {
             _id: data.id,
@@ -51,8 +51,8 @@ const clerkWebhooks = async (req, res) => {
 
         res.json({ success: true, message: "Webhook Received" });
     } catch (error) {
-        console.log(error.message);
-        res.json({ success: false, message: error.message });
+        console.log("Webhook error:", error.message);
+        res.status(400).json({ success: false, message: error.message });
     }
 }
 

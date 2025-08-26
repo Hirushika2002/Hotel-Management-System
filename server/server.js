@@ -10,13 +10,14 @@ connectDB()
 const app = express();
 app.use(cors()); // Enable Cross-Origin Resource Sharing
 
+// Use raw body parser for webhook route BEFORE any body-consuming middleware
+app.post("/api/clerk", express.raw({ type: 'application/json' }), clerkWebhooks);
+
 //middleware
-app.use(express.json())
 app.use(clerkMiddleware())
+app.use(express.json())
 
 //API
-app.post("/api/clerk", clerkWebhooks);
-
 app.get('/', (req, res) => res.send("API is working"));
 
 const PORT = process.env.PORT || 3000;
